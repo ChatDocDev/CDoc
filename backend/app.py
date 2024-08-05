@@ -168,3 +168,39 @@ def get_chat_response(question, collection):
         ],
     )
     return response["message"]["content"]
+
+# FastAPI endpoint to handle file upload and embedding
+@app.post("/process-file/")
+async def process_file(file: UploadFile = File(...)):
+    try:
+        upload_response = await upload_file(file)
+        file_path = upload_response["file_path"]
+        content = load_file(file_path)
+        chunks = chunk_text(content)
+        embeddings = get_embeddings(file.filename, "nomic-embed-text", chunks)
+        chromadb_vector_store(embeddings, chunks)
+        add_to_hash_map(file.filename)
+        return {"message": "File processed and embeddings stored successfully"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+# FastAPI endpoint to handle retrieval question answering
+@app.post("/ask-question/")
+async def ask_question(question: str):
+    try:
+        if not file_hash_map:
+            return JSONResponse(status_code=400, content={"error": "No file uploaded"})
+
+        latest_file = max(file_hash_map, key=file_hash_map.get)
+        client = chromadb.HttpClient(host='localhost', port=8001)
+        collection = client.get_collection(name='embeddings_collection')
+
+        response = get_chat_response(question, collection)
+        return {"response": response}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+# Run the FastAPI app
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)  # FastAPI will run on this address

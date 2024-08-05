@@ -96,3 +96,75 @@ def chromadb_vector_store(embeddings, paragraphs, collection_name='embeddings_co
     except Exception as e:
         print(f"Error storing embeddings in ChromaDB: {e}")
         return None
+    
+# Generate a hash from an input string
+def generate_hash(input_string):
+    hash_object = hashlib.sha256(input_string.encode())
+    return hash_object.hexdigest()
+
+# Hash map to keep track of file metadata
+file_hash_map = {}
+
+# Add file metadata to the hash map
+def add_to_hash_map(file_name):
+    file_hash_map[file_name] = generate_hash(file_name)
+
+# Load and save embeddings using JSON files
+def save_embeddings(filename, embeddings):
+    if not os.path.exists("embeddings"):
+        os.makedirs("embeddings")
+    with open(f"embeddings/{filename}.json", "w") as f:
+        json.dump(embeddings, f)
+
+def load_embeddings(filename):
+    if not os.path.exists(f"embeddings/{filename}.json"):
+        return False
+    with open(f"embeddings/{filename}.json", "r") as f:
+        return json.load(f)
+
+def get_embeddings(filename, modelname, chunks):
+    if (embeddings := load_embeddings(filename)) is not False:
+        return embeddings
+    embeddings = [
+        ollama.embeddings(model=modelname, prompt=chunk)["embedding"]
+        for chunk in chunks
+    ]
+    save_embeddings(filename, embeddings)
+    return embeddings
+
+# # Find cosine similarity of every chunk to a given embedding
+# def find_most_similar(needle, haystack):
+#     needle_norm = norm(needle)
+#     similarity_scores = [
+#         np.dot(needle, item) / (needle_norm * norm(item)) for item in haystack
+#     ]
+#     return sorted(zip(similarity_scores, range(len(haystack))), reverse=True)
+
+# Get a chat response for a question
+def get_chat_response(question, collection):
+    SYSTEM_PROMPT = """You are a helpful reading assistant who answers questions 
+        based on snippets of text provided in context. Answer only using the context provided, 
+        being as concise as possible. If you're unsure, just say that you don't know.
+        Context:
+    """
+    prompt_embedding = ollama.embeddings(model="nomic-embed-text", prompt=question)["embedding"]
+    results = collection.query(
+        query_embeddings=[prompt_embedding],
+        n_results=5
+    )
+    # print(results)
+    most_similar_chunks = results.get("documents", [])[0]
+    # print([chunk['text'] for sublist in most_similar_chunks for chunk in sublist])
+    print(most_similar_chunks)
+    response = ollama.chat(
+        model="llama3",
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+                + "\n".join([chunk for chunk in most_similar_chunks]),
+            },
+            {"role": "user", "content": question},
+        ],
+    )
+    return response["message"]["content"]

@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 import os
+import requests
 
 # Initialize session state to store file names and chat history
 if 'file_names' not in st.session_state:
@@ -29,6 +30,15 @@ def get_file_path(file_name):
 # Ensure 'uploads' directory exists
 os.makedirs("uploads", exist_ok=True)
 
+# Function to upload file to FastAPI
+def upload_file_to_fastapi(file_path):
+    url = "http://127.0.0.1:8000/upload-file/"
+    headers = {'accept': 'application/json'}
+    with open(file_path, 'rb') as f:
+        files = {'file': (os.path.basename(file_path), f, 'application/octet-stream')}
+        response = requests.post(url, headers=headers, files=files)
+    return response.json()
+
 # File uploader
 uploaded_file = st.file_uploader("Upload a file", type=['pdf','doc','txt','csv', 'xlsx'])
 
@@ -49,6 +59,10 @@ if uploaded_file is not None:
     
     if file_record not in st.session_state.file_names:
         st.session_state.file_names.append(file_record)
+    
+    # Upload to FastAPI
+    response = upload_file_to_fastapi(file_path)
+    st.write(response)
 
 # Function to create an icon and file name display
 def display_icon(file_record, container, highlight=False):
@@ -73,7 +87,6 @@ def display_icon(file_record, container, highlight=False):
             file_name_style = "color: lightgray;"
             
         col2.markdown(f"<span style='{file_name_style}'>{file_name}</span>", unsafe_allow_html=True)
-
 
 # Display uploaded files with icons in the main section
 st.header("Uploaded Files")
@@ -108,10 +121,10 @@ chat_input = st.text_input("Type your message here:", key="chat_input")
 if st.button("Send"):
     if chat_input:
         st.session_state['chat_history'].append(f"You: {chat_input}")
-        st.session_state['chat_history'].append(f"Chatbot: {get_chatbot_response(chat_input)}")
+        st.session_state['chat_history'].append(f"Chatbot: {get_chat_response(chat_input)}")
         st.experimental_rerun()  # To refresh the chat history display
 
 # Function to simulate chatbot response
-def get_chatbot_response(user_input):
+def get_chat_response(user_input):
     # This is a simple placeholder response. Replace with your chatbot logic.
     return f"Response to: {user_input}"

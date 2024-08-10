@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [{
+         "name": "Python: Streamlit",
+         "type": "python",
+         "request": "launch",
+         "module": "streamlit",
+         "env": {
+             "STREAMLIT_APP": "app.py",
+             "STREAMLIT_ENV": "development",
+             "AWS_PROFILE": "mega_root",
+             "PYTHONPATH": "${workspaceRoot}/src",
+         },
+         "args": [
+             "run",
+             "${workspaceFolder}/frontend/frontend.py"
+         ],
+         "jinja": true
+     },
+     {
+        "name": "Python Debugger: Python File",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/backend/backend.py"
+    }
+    ]
+ }

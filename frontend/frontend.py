@@ -10,8 +10,8 @@ st.set_page_config(layout="wide")
 if 'file_names' not in st.session_state:
     st.session_state['file_names'] = []
 
-if 'history' not in st.session_state:
-    st.session_state['history'] = []
+if 'chat_history' not in st.session_state:
+    st.session_state['chat_history'] = []
 
 if 'selected_file' not in st.session_state:
     st.session_state['selected_file'] = None
@@ -22,7 +22,7 @@ def get_file_extension(file_name):
 
 # Function to get the icon path based on the file extension
 def get_icon_path(file_extension):
-    icon_folder = "frontend\icons"
+    icon_folder = "icons"
     icon_path = os.path.join(icon_folder, f"{file_extension}.png")
     if not os.path.exists(icon_path):
         icon_path = os.path.join(icon_folder, "default.png")
@@ -65,7 +65,6 @@ if st.session_state.file_names:
         with col2:
             file_name_style = "color: lightgray;"
             col2.markdown(f"<span style='{file_name_style}'>{file_name}</span>", unsafe_allow_html=True)
-        ##DELETE##
         with col3:
             if col3.button("🗑️", key=f"delete_{index}"):
                 # Remove the file from the session state
@@ -82,8 +81,8 @@ if st.session_state.file_names:
     st.session_state['selected_file'] = selected_file
 
 # Display chat history using st.chat_message
-st.subheader("Chat with Chatbot")
-for msg in st.session_state.history:
+st.subheader("Chat with Document")
+for msg in st.session_state.chat_history:
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
 
@@ -93,7 +92,7 @@ prompt = st.chat_input("Say something")
 # Append chat input to chat history and handle file selection
 if prompt:
     if st.session_state['selected_file']:
-        st.session_state['history'].append({
+        st.session_state['chat_history'].append({
             'role': 'user',
             'content': prompt
         })
@@ -101,27 +100,33 @@ if prompt:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        with st.spinner('💡Thinking'):
-            data = {
-                'question': prompt,
-                'file_name': st.session_state['selected_file']
-            }
+        # Prepare a placeholder for the streamed response
+        assistant_message = st.chat_message("Assistant")
+        response_text = ""
+        with assistant_message:
+            message_placeholder = st.empty()
 
-            # Corrected: Use params=data to send as query parameters
-            response = requests.post("http://127.0.0.1:8000/ask-question/", params=data)
+        # Display Assistant response with streaming support
+        data = {
+            'question': prompt,
+            'file_name': st.session_state['selected_file']
+        }
 
-            if response.status_code == 200:
-                answer = response.json().get("response", "No response")
-            else:
-                st.write("Error Details:", response.json())  # Print the error details
-                answer = f"Error {response.status_code}: {response.text}"
+        response = requests.post("http://127.0.0.1:8000/ask-question/", params=data, stream=True)
 
-            st.session_state['history'].append({
+        if response.status_code == 200:
+            for chunk in response.iter_content(chunk_size=1024):
+                if chunk:
+                    response_text += chunk.decode('utf-8')
+                    message_placeholder.markdown(response_text)
+            
+            # Append the full response to chat history
+            st.session_state['chat_history'].append({
                 'role': 'Assistant',
-                'content': answer
+                'content': response_text
             })
-
-            with st.chat_message("Assistant"):
-                st.markdown(answer)
+        else:
+            st.write("Error Details:", response.json())  # Print the error details
+            answer = f"Error {response.status_code}: {response.text}"
     else:
         st.warning("Please select a file and enter a message.")

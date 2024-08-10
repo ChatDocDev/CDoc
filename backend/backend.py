@@ -5,10 +5,12 @@ import hashlib
 import numpy as np
 from numpy.linalg import norm
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
 import ollama
+from typing import Generator
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -77,10 +79,12 @@ def chunk_text(text, chunk_size=1000):
     return chunks
 
 # Store embeddings in ChromaDB
-def chromadb_vector_store(embeddings, paragraphs, collection_name='embeddings_collection'):
+def chromadb_vector_store(embeddings, paragraphs, collection_name):
     try:
-        client = chromadb.HttpClient(host='localhost', port=8001)  # ChromaDB port
-        collection = client.get_or_create_collection(name=collection_name, metadata={"hnsw:space": "cosine"})
+        client = chromadb.HttpClient(
+            host='localhost', port=8001)  # ChromaDB port
+        collection = client.get_or_create_collection(
+            name=collection_name, metadata={"hnsw:space": "cosine"})
 
         # Add embeddings to collection
         n = len(paragraphs)
@@ -89,7 +93,7 @@ def chromadb_vector_store(embeddings, paragraphs, collection_name='embeddings_co
             embeddings=[embedding for embedding in embeddings],
             documents=[paragraph for paragraph in paragraphs],
             metadatas=[{"doc_id": i} for i in range(n)],
-            )
+        )
 
         print("Stored embeddings in ChromaDB collection")
         return collection
@@ -141,21 +145,22 @@ def get_embeddings(filename, modelname, chunks):
 #     return sorted(zip(similarity_scores, range(len(haystack))), reverse=True)
 
 # Get a chat response for a question
-def get_chat_response(question, collection):
+def get_chat_response(question, collection) -> Generator[str, None, None]:
     SYSTEM_PROMPT = """You are a helpful reading assistant who answers questions 
         based on snippets of text provided in context. Answer only using the context provided, 
         being as concise as possible. If you're unsure, just say that you don't know.
         Context:
     """
-    prompt_embedding = ollama.embeddings(model="nomic-embed-text", prompt=question)["embedding"]
+    prompt_embedding = ollama.embeddings(
+        model="nomic-embed-text", prompt=question)["embedding"]
     results = collection.query(
         query_embeddings=[prompt_embedding],
         n_results=5
     )
-    # print(results)
+    print(results)
     most_similar_chunks = results.get("documents", [])[0]
-    # print([chunk['text'] for sublist in most_similar_chunks for chunk in sublist])
     print(most_similar_chunks)
+    print(results.get("distances", [])[0])
     response = ollama.chat(
         model="llama3",
         messages=[
@@ -166,8 +171,12 @@ def get_chat_response(question, collection):
             },
             {"role": "user", "content": question},
         ],
+        stream=True
     )
-    return response["message"]["content"]
+
+    for chunk in response:
+        print(chunk["message"]["content"])
+        yield chunk["message"]["content"]
 
 # FastAPI endpoint to handle file upload and embedding
 @app.post("/process-file/")
@@ -178,7 +187,8 @@ async def process_file(file: UploadFile = File(...)):
         content = load_file(file_path)
         chunks = chunk_text(content)
         embeddings = get_embeddings(file.filename, "nomic-embed-text", chunks)
-        chromadb_vector_store(embeddings, chunks)
+        chromadb_vector_store(embeddings, chunks,
+                              collection_name=file.filename)
         add_to_hash_map(file.filename)
         return {"message": "File processed and embeddings stored successfully"}
     except Exception as e:
@@ -186,17 +196,18 @@ async def process_file(file: UploadFile = File(...)):
 
 # FastAPI endpoint to handle retrieval question answering
 @app.post("/ask-question/")
-async def ask_question(question: str):
+async def ask_question(question: str, file_name: str):
     try:
         if not file_hash_map:
             return JSONResponse(status_code=400, content={"error": "No file uploaded"})
+        if file_name not in file_hash_map:
+            return JSONResponse(status_code=400, content={"error": "File not found"})
 
-        latest_file = max(file_hash_map, key=file_hash_map.get)
         client = chromadb.HttpClient(host='localhost', port=8001)
-        collection = client.get_collection(name='embeddings_collection')
+        collection = client.get_collection(name=file_name)
 
-        response = get_chat_response(question, collection)
-        return {"response": response}
+        # StreamingResponse to stream the response
+        return StreamingResponse(get_chat_response(question, collection), media_type='text/event-stream')
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

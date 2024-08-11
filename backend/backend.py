@@ -9,13 +9,20 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import chromadb
 import ollama
-from typing import Generator
+from typing import List, Generator
+from pydantic import BaseModel
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_community.document_loaders.csv_loader import CSVLoader
 import pandas as pd
 import docx
+
+# Class model for the request body
+class Data(BaseModel):
+    question: str 
+    file_names: List[str] 
+
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -226,31 +233,54 @@ def get_embeddings(filename, modelname, chunks):
         print(f"Error getting embeddings: {e}")
         return []
 
+# Function to combine results and pick top 7 chunks
+def combine_and_select_top_chunks(results_list, top_n=7):
+    try:    
+        combined_results = []
+        for result in results_list:
+            distances = result.get("distances", [])[0]
+            documents = result.get("documents", [])[0]
+            combined_results.extend(zip(distances, documents))
+        
+        # Sort combined results by distance (similarity score)
+        combined_results.sort(key=lambda x: x[0])
+        
+        # Select top N results
+        top_chunks = [doc for _, doc in combined_results[:top_n]]
+        return top_chunks
+    except Exception as e:
+        print(f"Error combining and selecting top chunks: {e}")
+        return []
+
 # Function to generate chat responses
-def get_chat_response(question, collection) -> Generator[str, None, None]:
+def get_chat_response(question, collections: List[str]) -> Generator[str, None, None]:
     try:
         SYSTEM_PROMPT = """You are a helpful reading assistant who answers questions 
-            based on snippets of text provided in context. Answer only using the context provided, 
-            being as concise as possible. If you're unsure, just say that you don't know.
-            Context:
-        """
+        based on snippets of text provided in context. Answer only using the context provided, 
+        being as concise as possible. If you're unsure, just say that you don't know.
+        Context:
+    """
         prompt_embedding = ollama.embeddings(
             model="nomic-embed-text", prompt=question)["embedding"]
-        results = collection.query(
-            query_embeddings=[prompt_embedding],
-            n_results=5
-        )
-        print(results)
-        most_similar_chunks = results.get("documents", [])[0]
-        print(most_similar_chunks)
-        print(results.get("distances", [])[0])
+
+        # Collect results from all specified collections
+        results_list = []
+        client = chromadb.HttpClient(host='localhost', port=8001)
+        for collection_name in collections:
+            collection = client.get_collection(name=collection_name)
+            results = collection.query(query_embeddings=[prompt_embedding], n_results=5)
+            results_list.append(results)
+
+        # Combine results and select the top 5 chunks
+        top_chunks = combine_and_select_top_chunks(results_list)
+
+        # Generate response based on selected chunks
         response = ollama.chat(
             model="llama3",
             messages=[
                 {
                     "role": "system",
-                    "content": SYSTEM_PROMPT
-                    + "\n".join([chunk for chunk in most_similar_chunks]),
+                    "content": SYSTEM_PROMPT + "\n".join(top_chunks),
                 },
                 {"role": "user", "content": question},
             ],
@@ -258,7 +288,7 @@ def get_chat_response(question, collection) -> Generator[str, None, None]:
         )
 
         for chunk in response:
-            print(chunk["message"]["content"])
+            # print(chunk["message"]["content"])
             yield chunk["message"]["content"]
     except Exception as e:
         print(f"Error generating chat response: {e}")
@@ -281,16 +311,23 @@ async def process_file(file: UploadFile = File(...)):
 
 # FastAPI endpoint to ask questions based on the document
 @app.post("/ask-question/")
-async def ask_question(file_name: str, question: str):
+async def ask_question(data: Data):
     try:
+        question = data.question
+        file_names = data.file_names
+
+        if not question or not file_names:
+            return JSONResponse(status_code=400, content={"error": "Question and file_names are required"})
+
         if not file_hash_map:
             return JSONResponse(status_code=400, content={"error": "No file uploaded"})
-        if file_name not in file_hash_map:
-            return JSONResponse(status_code=400, content={"error": "File not found"})
-        client = chromadb.HttpClient(host='localhost', port=8001)
-        collection = client.get_collection(name=file_name)
+        
+        for file_name in file_names:
+            if file_name not in file_hash_map:
+                return JSONResponse(status_code=400, content={"error": f"File not found: {file_name}"})
+
         # StreamingResponse to stream the response
-        return StreamingResponse(get_chat_response(question, collection), media_type="text/plain")
+        return StreamingResponse(get_chat_response(question, file_names), media_type='text/event-stream')
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 

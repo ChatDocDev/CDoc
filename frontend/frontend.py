@@ -13,8 +13,8 @@ if 'file_names' not in st.session_state:
 if 'chat_history' not in st.session_state:
     st.session_state['chat_history'] = []
 
-if 'selected_file' not in st.session_state:
-    st.session_state['selected_file'] = None
+if 'selected_files' not in st.session_state:
+    st.session_state['selected_files'] = []
 
 # Function to get file extension
 def get_file_extension(file_name):
@@ -29,27 +29,28 @@ def get_icon_path(file_extension):
     return icon_path
 
 # File uploader and file list in the sidebar
-st.sidebar.header("Upload and Select File")
-uploaded_file = st.sidebar.file_uploader("Upload a file", type=['pdf', 'doc', 'txt', 'csv', 'xlsx'])
+st.sidebar.header("Upload and Select Files")
+uploaded_file = st.sidebar.file_uploader("Upload a file", type=['pdf', 'doc', 'txt', 'csv', 'xlsx'], accept_multiple_files=True)
 
-# Send uploaded file to backend and save file info in session state
+# Send uploaded files to backend and save file info in session state
 if uploaded_file is not None:
-    file_extension = get_file_extension(uploaded_file.name)
-    file_record = {
-        "name": uploaded_file.name,
-        "type": file_extension,
-        "icon": get_icon_path(file_extension),
-    }
+    for file in uploaded_file:
+        file_extension = get_file_extension(file.name)
+        file_record = {
+            "name": file.name,
+            "type": file_extension,
+            "icon": get_icon_path(file_extension),
+        }
 
-    # Send the file to the FastAPI backend
-    files = {'file': uploaded_file}
-    response = requests.post("http://127.0.0.1:8000/process-file/", files=files)
+        # Send the file to the FastAPI backend
+        files = {'file': file}
+        response = requests.post("http://127.0.0.1:8000/process-file/", files=files)
 
-    if response.status_code == 200:
-        if file_record not in st.session_state.file_names:
-            st.session_state.file_names.append(file_record)
-    else:
-        st.sidebar.error(f"File upload failed: {response.json().get('error', 'Unknown error')}")
+        if response.status_code == 200:
+            if file_record not in st.session_state.file_names:
+                st.session_state.file_names.append(file_record)
+        else:
+            st.sidebar.error(f"File upload failed: {response.json().get('error', 'Unknown error')}")
 
 # Display uploaded files with icons and delete button in the sidebar
 if st.session_state.file_names:
@@ -74,14 +75,14 @@ if st.session_state.file_names:
 # Multi-select in the sidebar with icons
 if st.session_state.file_names:
     file_names_list = [file['name'] for file in st.session_state.file_names]
-    selected_file = st.sidebar.selectbox(
-        "Select a file",
+    selected_files = st.sidebar.multiselect(
+        "Select files",
         options=file_names_list
     )
-    st.session_state['selected_file'] = selected_file
+    st.session_state['selected_files'] = selected_files
 
 # Display chat history using st.chat_message
-st.subheader("Chat with Document")
+st.subheader("Chat with Documents")
 for msg in st.session_state.chat_history:
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
@@ -91,7 +92,7 @@ prompt = st.chat_input("Say something")
 
 # Append chat input to chat history and handle file selection
 if prompt:
-    if st.session_state['selected_file']:
+    if st.session_state['selected_files']:
         st.session_state['chat_history'].append({
             'role': 'user',
             'content': prompt
@@ -109,10 +110,10 @@ if prompt:
         # Display Assistant response with streaming support
         data = {
             'question': prompt,
-            'file_name': st.session_state['selected_file']
+            'file_names': st.session_state['selected_files']
         }
 
-        response = requests.post("http://127.0.0.1:8000/ask-question/", params=data, stream=True)
+        response = requests.post("http://127.0.0.1:8000/ask-question/", json=data, stream=True)
 
         if response.status_code == 200:
             for chunk in response.iter_content(chunk_size=1024):
@@ -129,4 +130,4 @@ if prompt:
             st.write("Error Details:", response.json())  # Print the error details
             answer = f"Error {response.status_code}: {response.text}"
     else:
-        st.warning("Please select a file and enter a message.")
+        st.warning("Please select files and enter a message.")

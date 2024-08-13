@@ -48,17 +48,16 @@ if submit_button and uploaded_files:
             "type": file_extension,
             "icon": get_icon_path(file_extension),
         }
-
-        # Check if file was previously deleted
-        if file_record["name"] in st.session_state.deleted_files:
-            # Remove from deleted list
-            st.session_state.deleted_files.remove(file_record["name"])
-            
-        elif file_record["name"] not in [f["name"] for f in st.session_state.file_names if f["name"] not in st.session_state.deleted_files]:
-            # Send the file to the FastAPI backend
+        
+        # Remove from deleted files if re-uploaded
+        st.session_state.deleted_files.discard(file_record["name"])
+        
+        # Only upload if not already in session state
+        if file_record["name"] not in [f["name"] for f in st.session_state.file_names]:
+            # Send file to backend
             files = {'file': file}
             response = requests.post("http://127.0.0.1:8000/process-file/", files=files)
-
+            
             if response.status_code == 200:
                 st.toast(f'{file.name} is uploaded successfully', icon="✅")
                 st.session_state.file_names.append(file_record)
@@ -82,16 +81,19 @@ if st.session_state.file_names:
             col2.markdown(f"<span style='{file_name_style}'>{file_name}</span>", unsafe_allow_html=True)
         with col3:
             if col3.button("🗑️", key=f"delete_{index}"):
-                # Perform deletion immediately
+                file_name = file["name"]
                 st.session_state.deleted_files.add(file_name)
+                
+                # Send delete request to backend
                 response = requests.post("http://127.0.0.1:8000/delete-file/", params={"file_name": file_name})
+                
                 if response.status_code == 200:
                     st.toast(f'{file_name} is deleted successfully', icon="🗑️")
                     st.session_state.file_names = [file for file in st.session_state.file_names if file["name"] != file_name]
                 else:
                     st.sidebar.error(f"Failed to delete file: {response.json().get('error', 'Unknown error')}")
-
-                # Clear the sidebar to force refresh and reflect changes
+                
+                # Re-run the script to refresh the sidebar
                 st.rerun()
 
 # Multi-select in the sidebar with icons

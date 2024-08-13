@@ -1,0 +1,12 @@
+streamlit
+Pillow
+requests
+fastapi
+uvicorn
+chroma-client
+ollama
+pydantic==2.8.2
+langchain
+langchain-community
+pandas
+python-docx

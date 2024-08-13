@@ -2,8 +2,6 @@ import os
 import shutil
 import json
 import hashlib
-import numpy as np
-from numpy.linalg import norm
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -148,10 +146,10 @@ def chunk_text(text, chunk_size=1000, chunk_overlap=50):
             chunk_overlap=chunk_overlap
         )
         doc_output = splitter.split_documents([Document(page_content=text)])
-        print(doc_output)
+        # print(doc_output)
         # Convert the Document objects to a list of strings
         result = [doc.page_content for doc in doc_output]
-        print(result)
+        # print(result)
         return result
     except Exception as e:
         print(f"Error chunking text: {e}")
@@ -330,6 +328,44 @@ async def ask_question(data: Data):
         return StreamingResponse(get_chat_response(question, file_names), media_type='text/event-stream')
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+# Function to delete the embeddings and collection from ChromaDB
+def delete_from_chromadb(collection_name):
+    try:
+        client = chromadb.HttpClient(host='localhost', port=8001)  # ChromaDB port
+        collection = client.get_collection(name=collection_name)
+        if collection:
+            client.delete_collection(collection_name)
+            print(f"Collection {collection_name} deleted from ChromaDB")
+    except Exception as e:
+        print(f"Error deleting collection from ChromaDB: {e}")
+
+# FastAPI endpoint to delete a file and its associated data
+@app.post("/delete-file/")
+async def delete_file(file_name: str):
+    try:
+        # Delete the file from the uploads directory
+        file_path = os.path.join("uploads", file_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Delete the embeddings and collection from ChromaDB
+        delete_from_chromadb(file_name)
+
+        # Remove the file from the hash map
+        if file_name in file_hash_map:
+            del file_hash_map[file_name]
+
+        # Optionally, delete the saved embeddings file
+        embeddings_file = os.path.join("embeddings", f"{file_name}.json")
+        if os.path.exists(embeddings_file):
+            os.remove(embeddings_file)
+
+        return {"message": "File and associated data deleted successfully"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 
 # Run the FastAPI app
 if __name__ == "__main__":

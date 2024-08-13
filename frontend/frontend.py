@@ -32,8 +32,8 @@ def get_icon_path(file_extension):
     return icon_path
 
 # File uploader and file list in the sidebar
-st.sidebar.header("Upload and Select Files")
-uploaded_file = st.sidebar.file_uploader("Upload a file", type=['pdf', 'doc', 'txt', 'csv', 'xlsx'], accept_multiple_files=True)
+st.sidebar.header("Upload and Select File(s)")
+uploaded_file = st.sidebar.file_uploader("Upload a file(s)", type=['pdf', 'doc', 'txt', 'csv', 'xlsx'], accept_multiple_files=True)
 
 # Handle file uploads
 if uploaded_file is not None:
@@ -94,19 +94,19 @@ if st.session_state.file_names:
 if st.session_state.file_names:
     file_names_list = [file['name'] for file in st.session_state.file_names if file["name"] not in st.session_state.deleted_files]
     selected_files = st.sidebar.multiselect(
-        "Select files",
+        "Select file(s)",
         options=file_names_list
     )
     st.session_state['selected_files'] = selected_files
 
 # Display chat history using st.chat_message
-st.subheader("Chat with Documents")
+st.subheader("CDOC: Chat with your Documents")
 for msg in st.session_state.chat_history:
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
 
 # Chat input at the bottom
-prompt = st.chat_input("Say something")
+prompt = st.chat_input("Select file(s) before asking something")
 
 # Append chat input to chat history and handle file selection
 if prompt:
@@ -148,4 +148,4 @@ if prompt:
             st.write("Error Details:", response.json())  # Print the error details
             answer = f"Error {response.status_code}: {response.text}"
     else:
-        st.warning("Please select files and enter a message.")
+        st.warning("Please select file(s) and enter a message.")

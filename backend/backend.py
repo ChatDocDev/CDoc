@@ -18,6 +18,13 @@ import docx
 
 # Class model for the request body
 class Data(BaseModel):
+    """
+    Model to define the request body for asking questions.
+
+    Attributes:
+        question (str): The question to be answered.
+        file_names (List[str]): List of file names to search for answers.
+    """
     question: str 
     file_names: List[str] 
 
@@ -35,6 +42,12 @@ app.add_middleware(
 
 # Function to create necessary directories
 def create_directory(directory_path):
+    """
+    Creates a directory if it doesn't exist.
+
+    Args:
+        directory_path (str): Path of the directory to be created.
+    """
     try:
         os.makedirs(directory_path, exist_ok=True)
         print(f"Directory created at: {directory_path}")
@@ -44,6 +57,15 @@ def create_directory(directory_path):
 # Save uploaded files locally
 @app.post("/upload-file/")
 async def upload_file(file: UploadFile = File(...)):
+    """
+    Uploads a file and saves it locally.
+
+    Args:
+        file (UploadFile): The file to be uploaded.
+
+    Returns:
+        dict: Contains the filename and file path.
+    """
     try:
         upload_directory = 'uploads'
         create_directory(upload_directory)
@@ -59,6 +81,15 @@ async def upload_file(file: UploadFile = File(...)):
 
 # Function to extract text from a PDF file
 def extract_text_from_pdf(pdf_path):
+    """
+    Extracts text from a PDF file.
+
+    Args:
+        pdf_path (str): Path to the PDF file.
+
+    Returns:
+        str: Extracted text from the PDF file.
+    """
     try:
         loader = PyPDFLoader(pdf_path)
         pages = loader.load_and_split()
@@ -70,6 +101,15 @@ def extract_text_from_pdf(pdf_path):
 
 # Function to extract text from a DOCX file
 def extract_text_from_docx(docx_path):
+    """
+    Extracts text from a DOCX file.
+
+    Args:
+        docx_path (str): Path to the DOCX file.
+
+    Returns:
+        str: Extracted text from the DOCX file.
+    """
     try:
         doc = docx.Document(docx_path)
         text = "\n".join([para.text for para in doc.paragraphs])
@@ -80,6 +120,15 @@ def extract_text_from_docx(docx_path):
 
 # Function to extract text from a TXT file
 def extract_text_from_txt(txt_path):
+    """
+    Extracts text from a TXT file.
+
+    Args:
+        txt_path (str): Path to the TXT file.
+
+    Returns:
+        str: Extracted text from the TXT file.
+    """
     try:
         loader = TextLoader(txt_path)
         documents = loader.load()
@@ -91,6 +140,15 @@ def extract_text_from_txt(txt_path):
 
 # Function to extract text from a CSV file
 def extract_text_from_csv(csv_path):
+    """
+    Extracts text from a CSV file.
+
+    Args:
+        csv_path (str): Path to the CSV file.
+
+    Returns:
+        str: Extracted text from the CSV file.
+    """
     try:
         loader = CSVLoader(file_path=csv_path)
         data = loader.load()
@@ -102,6 +160,15 @@ def extract_text_from_csv(csv_path):
 
 # Function to extract text from an XLSX file
 def extract_text_from_xlsx(xlsx_path):
+    """
+    Extracts text from an XLSX file.
+
+    Args:
+        xlsx_path (str): Path to the XLSX file.
+
+    Returns:
+        str: Extracted text from the XLSX file.
+    """
     try:
         df = pd.read_excel(xlsx_path)
         text = df.to_string(index=False)
@@ -112,6 +179,15 @@ def extract_text_from_xlsx(xlsx_path):
 
 # Function to get file extension
 def get_file_extension(file_path):
+    """
+    Gets the extension of a file.
+
+    Args:
+        file_path (str): Path to the file.
+
+    Returns:
+        str: File extension in lowercase.
+    """
     try:
         return os.path.splitext(file_path)[1].lower()
     except Exception as e:
@@ -120,6 +196,15 @@ def get_file_extension(file_path):
 
 # Function to extract text based on file type
 def extract_text(file_path):
+    """
+    Extracts text from a file based on its extension.
+
+    Args:
+        file_path (str): Path to the file.
+
+    Returns:
+        str: Extracted text from the file.
+    """
     try:
         ext = get_file_extension(file_path)
         if ext == '.pdf':
@@ -140,6 +225,17 @@ def extract_text(file_path):
 
 # Function to chunk text into smaller pieces
 def chunk_text(text, chunk_size=1000, chunk_overlap=50):
+    """
+    Splits text into smaller chunks for better processing.
+
+    Args:
+        text (str): The text to be split.
+        chunk_size (int): The size of each chunk.
+        chunk_overlap (int): The overlap between chunks.
+
+    Returns:
+        List[str]: List of text chunks.
+    """
     try:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
@@ -157,6 +253,17 @@ def chunk_text(text, chunk_size=1000, chunk_overlap=50):
 
 # Store embeddings in ChromaDB
 def chromadb_vector_store(embeddings, paragraphs, collection_name):
+    """
+    Stores embeddings in a ChromaDB collection.
+
+    Args:
+        embeddings (List): List of embeddings to store.
+        paragraphs (List[str]): List of text paragraphs corresponding to the embeddings.
+        collection_name (str): Name of the ChromaDB collection.
+
+    Returns:
+        chromadb.Collection: The collection where embeddings are stored.
+    """
     try:
         client = chromadb.HttpClient(host='localhost', port=8001)  # ChromaDB port
         collection = client.get_or_create_collection(
@@ -179,6 +286,15 @@ def chromadb_vector_store(embeddings, paragraphs, collection_name):
     
 # Generate a hash from an input string
 def generate_hash(input_string):
+    """
+    Generates a SHA-256 hash from a string.
+
+    Args:
+        input_string (str): The input string to hash.
+
+    Returns:
+        str: The resulting hash.
+    """
     try:
         hash_object = hashlib.sha256(input_string.encode())
         return hash_object.hexdigest()
@@ -191,6 +307,12 @@ file_hash_map = {}
 
 # Add file metadata to the hash map
 def add_to_hash_map(file_name):
+    """
+    Adds file metadata to the hash map by generating a hash.
+
+    Args:
+        file_name (str): The name of the file.
+    """
     try:
         file_hash_map[file_name] = generate_hash(file_name)
     except Exception as e:
@@ -198,6 +320,13 @@ def add_to_hash_map(file_name):
 
 # Load and save embeddings using JSON files
 def save_embeddings(filename, embeddings):
+    """
+    Save embeddings to a JSON file.
+
+    Parameters:
+    filename (str): The name of the file to save the embeddings to.
+    embeddings (List[List[float]]): The embeddings to save.
+    """
     try:
         if not os.path.exists("embeddings"):
             os.makedirs("embeddings")
@@ -207,6 +336,15 @@ def save_embeddings(filename, embeddings):
         print(f"Error saving embeddings: {e}")
 
 def load_embeddings(filename):
+    """
+    Load embeddings from a JSON file.
+
+    Parameters:
+    filename (str): The name of the file to load the embeddings from.
+
+    Returns:
+    List[List[float]]: The loaded embeddings, or False if loading fails.
+    """
     try:
         if not os.path.exists(f"embeddings/{filename}.json"):
             return False
@@ -218,6 +356,17 @@ def load_embeddings(filename):
 
 # Function to get or generate embeddings
 def get_embeddings(filename, modelname, chunks):
+    """
+    Get or generate embeddings for the provided chunks of text.
+
+    Parameters:
+    filename (str): The name of the file associated with the embeddings.
+    modelname (str): The name of the model to use for generating embeddings.
+    chunks (List[str]): The chunks of text to generate embeddings for.
+
+    Returns:
+    List[List[float]]: The embeddings for the provided chunks.
+    """
     try:
         if (embeddings := load_embeddings(filename)) is not False:
             return embeddings
@@ -233,6 +382,16 @@ def get_embeddings(filename, modelname, chunks):
 
 # Function to combine results and pick top 7 chunks
 def combine_and_select_top_chunks(results_list, top_n=7):
+    """
+    Combine results from multiple collections and select the top N chunks based on similarity.
+
+    Parameters:
+    results_list (List[dict]): A list of results from different collections.
+    top_n (int): The number of top chunks to select. Default is 7.
+
+    Returns:
+    List[str]: The top N chunks of text.
+    """
     try:    
         combined_results = []
         for result in results_list:
@@ -252,6 +411,16 @@ def combine_and_select_top_chunks(results_list, top_n=7):
 
 # Function to generate chat responses
 def get_chat_response(question, collections: List[str]) -> Generator[str, None, None]:
+    """
+    Generate a chat response based on the provided question and document collections.
+
+    Parameters:
+    question (str): The question to ask.
+    collections (List[str]): The list of collections to query.
+
+    Yields:
+    str: A portion of the chat response.
+    """
     try:
         SYSTEM_PROMPT = """You are a helpful reading assistant who answers questions 
         based on snippets of text provided in context. Answer only using the context provided, 
@@ -295,6 +464,15 @@ def get_chat_response(question, collections: List[str]) -> Generator[str, None, 
 # FastAPI endpoint to handle file upload and embedding
 @app.post("/process-file/")
 async def process_file(file: UploadFile = File(...)):
+    """
+    Endpoint to process an uploaded file, extract text, generate embeddings, and store them in ChromaDB.
+
+    Parameters:
+    file (UploadFile): The file uploaded by the user.
+
+    Returns:
+    JSONResponse: A response indicating the success or failure of the file processing.
+    """
     try:
         upload_response = await upload_file(file)
         file_path = upload_response["file_path"]
@@ -310,6 +488,16 @@ async def process_file(file: UploadFile = File(...)):
 # FastAPI endpoint to ask questions based on the document
 @app.post("/ask-question/")
 async def ask_question(data: Data):
+    """
+    Endpoint to ask questions based on the uploaded documents. 
+    It retrieves the relevant chunks from the documents and streams the generated response.
+
+    Parameters:
+    data (Data): The data containing the question and the list of file names to query.
+
+    Returns:
+    StreamingResponse: A stream of the generated response based on the documents.
+    """
     try:
         question = data.question
         file_names = data.file_names
@@ -331,6 +519,12 @@ async def ask_question(data: Data):
 
 # Function to delete the embeddings and collection from ChromaDB
 def delete_from_chromadb(collection_name):
+    """
+    Delete a collection and its associated embeddings from ChromaDB.
+
+    Parameters:
+    collection_name (str): The name of the collection to delete.
+    """
     try:
         client = chromadb.HttpClient(host='localhost', port=8001)  # ChromaDB port
         collection = client.get_collection(name=collection_name)
@@ -343,6 +537,15 @@ def delete_from_chromadb(collection_name):
 # FastAPI endpoint to delete a file and its associated data
 @app.post("/delete-file/")
 async def delete_file(file_name: str):
+    """
+    Endpoint to delete a file and its associated data, including embeddings and collections from ChromaDB.
+
+    Parameters:
+    file_name (str): The name of the file to delete.
+
+    Returns:
+    JSONResponse: A response indicating the success or failure of the file deletion.
+    """
     try:
         # Delete the file from the uploads directory
         file_path = os.path.join("uploads", file_name)

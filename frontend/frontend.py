@@ -21,10 +21,28 @@ if 'deleted_files' not in st.session_state:
 
 # Function to get file extension
 def get_file_extension(file_name):
+    """
+    Get the file extension from the given file name.
+
+    Args:
+        file_name (str): The name of the file.
+
+    Returns:
+        str: The file extension.
+    """
     return file_name.split('.')[-1]
 
 # Function to get the icon path based on the file extension
 def get_icon_path(file_extension):
+    """
+    Get the path to the icon image based on the file extension.
+
+    Args:
+        file_extension (str): The file extension.
+
+    Returns:
+        str: The path to the icon image.
+    """
     icon_folder = "icons"
     icon_path = os.path.join(icon_folder, f"{file_extension}.png")
     if not os.path.exists(icon_path):
@@ -36,11 +54,17 @@ st.sidebar.header("Upload and Select File(s)")
 
 # Streamlit form for file uploads
 with st.sidebar.form(key='upload_form',clear_on_submit=True):
+    """
+    Streamlit form for uploading files.
+    """
     uploaded_files = st.file_uploader("Upload a file(s)", type=['pdf', 'docx', 'txt', 'csv', 'xlsx'], accept_multiple_files=True)
     submit_button = st.form_submit_button(label='Upload')
 
 # Handle file uploads
 if submit_button and uploaded_files:
+    """
+    Handles the file upload process. Uploads files to the backend and updates session state.
+    """
     for file in uploaded_files:
         file_extension = get_file_extension(file.name)
         file_record = {
@@ -66,6 +90,9 @@ if submit_button and uploaded_files:
 
 # Display uploaded files with icons and delete button in the sidebar
 if st.session_state.file_names:
+    """
+    Multi-select widget for selecting files from the uploaded files. Updates the session state with selected files.
+    """
     st.sidebar.subheader("Uploaded Files")
     files_to_display = [file for file in st.session_state.file_names if file["name"] not in st.session_state.deleted_files]
     for index, file in enumerate(files_to_display):
@@ -108,6 +135,9 @@ if st.session_state.file_names:
 # Display chat history using st.chat_message
 st.subheader("CDOC: Chat with your Documents")
 for msg in st.session_state.chat_history:
+    """
+    Display chat history with messages from the user and the assistant.
+    """
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
 
@@ -117,6 +147,9 @@ prompt = st.chat_input("Select file(s) before asking something")
 # Append chat input to chat history and handle file selection
 if prompt:
     if st.session_state['selected_files']:
+        """
+        Handle chat input by appending it to chat history and sending a request to the backend for a response.
+        """
         st.session_state['chat_history'].append({
             'role': 'user',
             'content': prompt

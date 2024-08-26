@@ -1,0 +1,13 @@
+fastapi
+pydantic
+uvicorn
+Pillow
+requests
+pandas
+python-docx
+python-multipart
+langchain
+langchain-community
+chromadb
+ollama
+streamlit

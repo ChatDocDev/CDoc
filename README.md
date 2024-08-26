@@ -68,8 +68,6 @@ or any other code editor
       <p align=center>
       <img width="70%" alt="Screenshot 2024-08-26 at 12 36 17 PM" src="https://github.com/user-attachments/assets/d88e532f-f679-471d-a876-6fc9b0d93ab2">
       </p>
-
-
    - Serve Ollama
      ```
      ollama serve
